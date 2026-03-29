@@ -2,6 +2,7 @@ from typing import Any
 from shared.llm import LocalLLM
 from shared.utils import extract_json_from_text
 from agent.tools import get_tool_schema, execute_tool
+from agent.state import AgentState
 
 class Agent:
     def __init__(self, model_path: str):
@@ -11,6 +12,7 @@ class Agent:
             "You explain concepts simply and clearly, and avoid unnecessary details.",
             "If you don't know the answer, say you don't know, don't try to make up an answer."
         )
+        self.state = AgentState()
 
     def simple_generate(self, user_input: str) -> str:
         """
@@ -153,3 +155,69 @@ class Agent:
             The result of the tool execution.
         """
         return execute_tool(tool_call["tool"], tool_call["arguments"])
+
+    def agent_step(self, user_input: str) -> dict | None:
+        """
+        Model will execute one step of the agent loop/
+
+        Args:
+            user_input (str): User's input or system observations
+
+        Returns:
+            The result of the agent's step, or None if no action was taken.
+        """
+        state_dict = self.state.to_dict()
+        prompt = f"""{self.system_prompt}
+        
+        You are an agent. You must decide the next action and respond with ONLY valid JSON.
+        
+        Current state: steps={state_dict.get('steps', 0)}, done={state_dict.get('done', False)}
+        
+        Available actions: analyze, research, sumarize, answer, done
+        
+        CRITICAL INSTRUCTIONS:
+        1. Respond with ONLY valid JSON
+        2. No explanations, no markdown, no extra text before or after the JSON response
+        3. Start your response with {{ and end with }}
+        
+        Required JSON format:
+        {{"action": "action_name", "reason": "explanation"}}
+        
+        User input: {user_input}
+        
+        Response (JSON only):"""
+        
+        for attempt in range(3):
+            response = self.llm.generate(prompt, temperature=0.0)
+            parsed = extract_json_from_text(response)
+            
+            if parsed and "action" in parsed:
+                if "reason" not in parsed:
+                    parsed["reason"] = f"Taking action: {parsed['action']}"
+                self.state.increment_step()
+                return parsed
+        return None
+    
+    def run_loop(self, user_input: str, max_steps: int = 5):
+        """
+        Run the agent loop for multiple steps.
+
+        Args:
+            user_input (str): Initial user input
+            max_steps (int): Maximum number of steps to execute. Defaults to 5.
+        """
+        self.state.reset()
+        results = []
+        
+        while not self.state.done and self.state.steps < max_steps:
+            action = self.agent_step(user_input)
+            
+            if action:
+                results.append(action)
+                
+                if action.get("action") == "done":
+                    self.state.mark_done()
+            else:
+                break
+        
+        return results
