@@ -3,16 +3,18 @@ from shared.llm import LocalLLM
 from shared.utils import extract_json_from_text
 from agent.tools import get_tool_schema, execute_tool
 from agent.state import AgentState
+from agent.memory import Memory
 
 class Agent:
     def __init__(self, model_path: str):
         self.llm = LocalLLM(model_path)
         self.system_prompt = (
-            "You are a helpful and precise assistant for answering questions.",
-            "You explain concepts simply and clearly, and avoid unnecessary details.",
+            "You are a helpful and precise assistant for answering questions. "
+            "You explain concepts simply and clearly, and avoid unnecessary details. "
             "If you don't know the answer, say you don't know, don't try to make up an answer."
         )
         self.state = AgentState()
+        self.memory = Memory()
 
     def simple_generate(self, user_input: str) -> str:
         """
@@ -221,3 +223,63 @@ class Agent:
                 break
         
         return results
+    
+    def run_with_memory(self, user_input: str) -> dict | None:
+        """
+        Run agent with memory context
+
+        Args:
+            user_input : User's inpu
+
+        Returns:
+            dict | None: The result of the agent's step with memory context, or None if no action was taken.
+        """
+        memory_context = self.memory.get_all()
+        
+        if memory_context:
+            memory_str = "You remember the following:\n" + "\n".join(f"-{item}" for item in memory_context)
+        else:
+            memory_str = "You have no meomries yet"
+            
+        
+        prompt = f"""{self.system_prompt}
+        You are an agent with memory. You must respond with ONLY valid JSON.
+        
+        {memory_str}
+        
+        CRITICAL INSTRUCTIONS:
+        1. Repond with ONLY valid JSON
+        2. No explanations, no markdown, no other text
+        3. Start your reponse with {{ and end with }}
+        4. If the user tells you information (like their name or preferences), save ALL facts to memory as a list
+        5. If the user asks about something you remember, USE YOUR MEMORY to answer
+        
+        Required JSON format:
+        {{"reply":"your response text", "save_to_memory":["fact1", "fact2"] or null}}
+        
+        Examples:
+        - User says "My name is Alice and I like pizza" -> {{"reply": "Hi Alice! I'll remember you like pizza.", "save_to_memory":["User's name is Alice", "User likes pizza"]}}
+        - User says "My name is Bob" -> {{"reply": "Hi Bob, nice to meet you!", "save_to_memory":["User's name is Bob"]}}
+        - User asks "What's my name?" and you remember "User's name is Alice" -> {{"reply": "Your name is Alice", "save_to_memory":null}}
+        
+        User input: {user_input}
+        Response (JSON only):"""
+        
+        for attempt in range(3):
+            response = self.llm.generate(prompt, temperature=0.0)
+            parsed = extract_json_from_text(response)
+            
+            if parsed and "reply" in parsed:
+                save_data = parsed.get("save_to_memory")
+                if save_data:
+                    # Handle both list and string formats
+                    if isinstance(save_data, list):
+                        for item in save_data:
+                            self.memory.add(item)
+                    else:
+                        self.memory.add(save_data)
+                    
+                self.state.increment_step()
+                return parsed
+        
+        return None

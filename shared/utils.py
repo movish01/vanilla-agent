@@ -62,28 +62,52 @@ def extract_json_from_text(text: str) -> dict | None:
     
     # Try to find JSON between curly braces (most common case)
     start = text.find('{')
-    end = text.rfind('}')
     
-    if start != -1 and end != -1 and end > start:
-        json_text = text[start:end+1]
-        result = safe_json_parse(json_text)
-        if result is not None:
-            return result
+    if start != -1:
+        # Use brace counting to find the matching closing brace
+        depth = 0
+        in_string = False
+        escape_next = False
+        for i in range(start, len(text)):
+            ch = text[i]
+            if escape_next:
+                escape_next = False
+                continue
+            if ch == '\\' and in_string:
+                escape_next = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+            elif not in_string:
+                if ch == '{':
+                    depth += 1
+                elif ch == '}':
+                    depth -= 1
+                    if depth == 0:
+                        json_text = text[start:i+1]
+                        result = safe_json_parse(json_text)
+                        if result is not None:
+                            return result
+                        break
         
-        # Try to fix common issues: unclosed strings, missing quotes
-        # This is a simple heuristic - if we're close, try to fix it
-        if json_text.count('"') % 2 != 0:
-            # Odd number of quotes - try to close the last string
-            last_quote = json_text.rfind('"')
-            if last_quote > 0:
-                # Check if it's an opening quote
-                before = json_text[:last_quote]
-                if before.count('"') % 2 == 0:
-                    # This might be an unclosed string, try adding a closing quote
-                    try_fix = json_text[:last_quote+1] + '"' + json_text[last_quote+1:] + '}'
-                    result = safe_json_parse(try_fix)
-                    if result is not None:
-                        return result
+        # Fallback: try first '{' to last '}'
+        end = text.rfind('}')
+        if end != -1 and end > start:
+            json_text = text[start:end+1]
+            result = safe_json_parse(json_text)
+            if result is not None:
+                return result
+            
+            # Try to fix common issues: unclosed strings, missing quotes
+            if json_text.count('"') % 2 != 0:
+                last_quote = json_text.rfind('"')
+                if last_quote > 0:
+                    before = json_text[:last_quote]
+                    if before.count('"') % 2 == 0:
+                        try_fix = json_text[:last_quote+1] + '"' + json_text[last_quote+1:] + '}'
+                        result = safe_json_parse(try_fix)
+                        if result is not None:
+                            return result
     
     # Try to find JSON between square brackets (for arrays)
     start = text.find('[')
