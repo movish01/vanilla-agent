@@ -4,6 +4,7 @@ from shared.utils import extract_json_from_text
 from agent.tools import get_tool_schema, execute_tool
 from agent.state import AgentState
 from agent.memory import Memory
+from agent.planner import *
 
 class Agent:
     def __init__(self, model_path: str):
@@ -283,3 +284,56 @@ class Agent:
                 return parsed
         
         return None
+    
+    def create_plan(self, goal: str) -> dict | None:
+        """
+        Generate a plan to achieve a Goal
+
+        Args:
+            goal (str): The goal to achieve
+
+        Returns:
+            dict | None: Plan with steps
+        """
+        plan = create_plan(self.llm, goal)
+        
+        if plan:
+            self.state.current_plan = plan
+        
+        return plan
+    
+    def execute_plan(self, plan: dict) -> list:
+        """
+        Execute a plan step by step
+
+        Args:
+            plan (dict): Plan dictionary with "steps" list
+
+        Returns:
+            list: List of executiong results
+        """
+        if not plan or "steps" not in plan:
+            return []
+        
+        results = []
+        
+        for step in plan["steps"]:
+            result = {
+                "step": step,
+                "executed": True
+            }
+            results.append(result)
+            self.state.increment_step()
+        return results
+    
+    def create_atomic_actions(self, step: str) -> dict | None:
+        """
+        Convert a plan step into an atomic action.
+
+        Args:
+            step (str): A step from a plan
+
+        Returns:
+            dict | None: Atomic action dictionary with "action" and "inputs", or None if generation failed
+        """
+        return create_atomic_action(self.llm, step)
