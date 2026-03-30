@@ -337,3 +337,30 @@ class Agent:
             dict | None: Atomic action dictionary with "action" and "inputs", or None if generation failed
         """
         return create_atomic_action(self.llm, step)
+    
+    def create_aot_plan(self, goal: str) -> dict | None:
+        """
+        Generate an AoT execution graph
+
+        Args:
+            goal (str): The goal to achieve
+
+        Returns:
+            dict | None: AoT graph with atomic nodes and dependencies
+        """
+        return create_aot_graph(self.llm, goal)
+    
+    def execute_aot_plan(self, graph: dict) -> list:
+        """
+        Execute an AoT graph respecting dependencies.
+
+        Args:
+            graph (dict): AoT graph
+
+        Returns:
+            list: List of execution results
+        """
+        def execute_action(action: str):
+            return f"Executed: {action}"
+        
+        return execute_graph(graph, execute_action)

@@ -61,14 +61,22 @@ agent = Agent("models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf")
 #     print(f"Execution results: {results}")
 
 # # Atomic actions within Agent
-step = "Write a critique for movie A Beautiful Mind"
-atomic_action = agent.create_atomic_actions(step)
-print(f"Step: {step}")
-print(f"Atomic action: {atomic_action}")
+# step = "Write a critique for movie A Beautiful Mind"
+# atomic_action = agent.create_atomic_actions(step)
+# print(f"Step: {step}")
+# print(f"Atomic action: {atomic_action}")
 
-plan = agent.create_plan("Create a tutorial for python")
-if plan and "steps" in plan and plan["steps"]:
-    first_step = plan["steps"][0]
-    atomic_action_from_plan = agent.create_atomic_actions(first_step)
-    print(f"\nPlan step: {first_step}")
-    print(f"Atomic action from plan step: {atomic_action_from_plan}")
+# plan = agent.create_plan("Create a tutorial for python")
+# if plan and "steps" in plan and plan["steps"]:
+#     first_step = plan["steps"][0]
+#     atomic_action_from_plan = agent.create_atomic_actions(first_step)
+#     print(f"\nPlan step: {first_step}")
+#     print(f"Atomic action from plan step: {atomic_action_from_plan}")
+
+# # Atom of Thought - graph and execution
+graph = agent.create_aot_plan("Research and write article on thriller movies last decade") 
+print(f"AoT graph: {graph}")
+
+if graph:
+    results = agent.execute_aot_plan(graph)
+    print(f"Execution results: {results}")
