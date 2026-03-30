@@ -1,4 +1,7 @@
 from agent.agent import Agent
+from agent.evals import AgentEval, print_eval_report
+from evals.golden_datasets import *
+from agent.telemetry import Telemetry
 
 agent = Agent("models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf")
 
@@ -74,9 +77,41 @@ agent = Agent("models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf")
 #     print(f"Atomic action from plan step: {atomic_action_from_plan}")
 
 # # Atom of Thought - graph and execution
-graph = agent.create_aot_plan("Research and write article on thriller movies last decade") 
-print(f"AoT graph: {graph}")
+# graph = agent.create_aot_plan("Research and write article on thriller movies last decade") 
+# print(f"AoT graph: {graph}")
 
-if graph:
-    results = agent.execute_aot_plan(graph)
-    print(f"Execution results: {results}")
+# if graph:
+#     results = agent.execute_aot_plan(graph)
+#     print(f"Execution results: {results}")
+
+# # Evals
+# evaluator = AgentEval(agent)
+
+# results = evaluator.run_all(
+#     structured_cases=STRUCTURED_OUTPUT_GOLDEN,
+#     tool_cases=TOOL_CALL_GOLDEN,
+#     memory_cases=MEMORY_GOLDEN
+# )
+
+# print_eval_report(results)
+
+# # Telemetry - Observability
+telemetry = Telemetry()
+
+trace_id = telemetry.start_trace()
+print(f"Trace ID: {trace_id}")
+
+import time
+
+start = time.time()
+result = agent.generate_structured("What's python", '{"answer": string}')
+duration = (time.time() - start) * 1000
+
+telemetry.log_llm_call(
+    prompt_length=100,
+    response_length=len(str(result)),
+    duration_ms=duration,
+    success=result is not None
+)
+
+telemetry.print_summary()

@@ -1,0 +1,1 @@
+{"span_id": "aa8c686f", "trace_id": "d2baac34", "event_type": "llm_call", "timestamp": "2026-03-31T03:02:02.632610", "duration_ms": 15968.44, "data": {"prompt_length": 100, "response_length": 71, "attempt": 1, "success": true}}
